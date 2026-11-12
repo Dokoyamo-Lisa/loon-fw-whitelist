@@ -36,7 +36,8 @@
  * network error after all 3 attempts, always notify.
  */
 
-var TIMEOUT_SEC = 10;
+// Loon's $httpClient timeout is in MILLISECONDS (default 5000).
+var TIMEOUT_MS = 10000;
 // network-changed fires the moment the interface switches, before the new
 // network has a route and DNS; wait this long first.
 var SETTLE_MS = 3000;
@@ -154,7 +155,15 @@ function isSuperseded(runId) {
 function post(url) {
   return new Promise(function (resolve) {
     $httpClient.post(
-      { url: url, headers: { "Content-Type": "application/json" }, body: "", timeout: TIMEOUT_SEC },
+      {
+        url: url,
+        headers: { "Content-Type": "application/json" },
+        body: "",
+        timeout: TIMEOUT_MS,
+        // Send DIRECT whatever the rules say, so the server sees this
+        // device's real exit IP (the plugin's [Rule] is a second guard).
+        node: "DIRECT",
+      },
       function (err, resp, body) {
         if (err) resolve({ error: String(err) });
         else resolve({ status: resp && (resp.status || resp.statusCode), body: body });
