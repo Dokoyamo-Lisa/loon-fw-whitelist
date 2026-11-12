@@ -36,28 +36,45 @@
  * network error after all 3 attempts, always notify.
  */
 
-// Loon's $httpClient timeout is in MILLISECONDS (default 5000).
-var TIMEOUT_MS = 10000;
+/*
+ * Units: every time value in this script is in MILLISECONDS, like
+ * Date.now(), setTimeout() and Loon's $httpClient `timeout` option
+ * (whose default is 5000). Only the plugin's `timeout=60` on each script
+ * line is in SECONDS: it is how long Loon lets one run last before
+ * killing it.
+ */
+var SECOND_MS = 1000;
+
+// Per-request limit for $httpClient (milliseconds, NOT seconds).
+var TIMEOUT_MS = 10 * SECOND_MS;
 // network-changed fires the moment the interface switches, before the new
 // network has a route and DNS; wait this long first.
-var SETTLE_MS = 3000;
+var SETTLE_MS = 3 * SECOND_MS;
 // On a network error, retry after each of these delays. Worst case:
-// 3s settle + 3 attempts x 10s timeout + 3s + 6s = 42s, under timeout=60.
-var RETRY_DELAYS_MS = [3000, 6000];
+// 3s settle + 3 attempts x 10s timeout + 3s + 6s = 42s, under the plugin's
+// timeout=60 (seconds).
+var RETRY_DELAYS_MS = [3 * SECOND_MS, 6 * SECOND_MS];
 // While connected, re-POST this often so evicted entries come back.
-var REFRESH_MS = 60 * 1000;
+var REFRESH_MS = 60 * SECOND_MS;
+// A tick is "due" for refresh this much early, so a tick that lands
+// slightly before REFRESH_MS doesn't push the request to the next tick.
+var REFRESH_SLACK_MS = 5 * SECOND_MS;
 // A tick counts as a reconnect when the gap since the previous tick is more
 // than 3x the usual gap, and at least this long.
-var MIN_RECONNECT_GAP_MS = 45 * 1000;
-// A POST run older than this is assumed dead (Loon killed it at timeout=60).
-var INFLIGHT_STALE_MS = 70 * 1000;
+var MIN_RECONNECT_GAP_MS = 45 * SECOND_MS;
+// Cap on the remembered "usual" tick gap, so one long outage doesn't hide
+// the next reconnect.
+var MAX_TICK_GAP_MS = 5 * 60 * SECOND_MS;
+// A POST run older than this is assumed dead: Loon kills runs after the
+// plugin's timeout=60 (seconds), so 70s is safely past that.
+var INFLIGHT_STALE_MS = 70 * SECOND_MS;
 
 var K = {
   state: "fwwl_state_", // + token index: "ip|ok" from the last run
   runId: "fwwl_run_id", // newest automatic POST run; older ones stop
-  inflight: "fwwl_inflight", // start time of the running POST run, or ""
-  lastPost: "fwwl_last_post", // end time of the last finished POST run
-  lastTick: "fwwl_last_tick", // time of the previous cron tick
+  inflight: "fwwl_inflight", // start of the running POST run (Date.now() ms), or ""
+  lastPost: "fwwl_last_post", // end of the last finished POST run (Date.now() ms)
+  lastTick: "fwwl_last_tick", // previous cron tick (Date.now() ms)
   tickGap: "fwwl_tick_gap", // usual gap between ticks (ms)
   notified: "fwwl_notified", // exit IPs already announced this network; "" = not yet
 };
@@ -247,7 +264,7 @@ function checkTick(now) {
   var gap = now - last;
   // Remember the latest gap as "usual", capped so one long outage
   // doesn't hide the next one.
-  set(K.tickGap, Math.min(gap, 5 * 60 * 1000));
+  set(K.tickGap, Math.min(gap, MAX_TICK_GAP_MS));
   return gap > Math.max(MIN_RECONNECT_GAP_MS, 3 * usual);
 }
 
@@ -260,7 +277,7 @@ function reasonToRun(trigger, now) {
   var started = getNum(K.inflight);
   if (started !== null && now - started < INFLIGHT_STALE_MS) return null; // a run is working
   var lastPost = getNum(K.lastPost);
-  if (lastPost === null || now - lastPost >= REFRESH_MS - 5000) return "refresh";
+  if (lastPost === null || now - lastPost >= REFRESH_MS - REFRESH_SLACK_MS) return "refresh";
   return null;
 }
 

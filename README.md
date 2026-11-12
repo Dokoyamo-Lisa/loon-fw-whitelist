@@ -57,6 +57,7 @@ Your server needs to implement the contract below. Then either:
    - The script tells these apart by tag, which Loon gives it as `$script.name`.
    - If your Loon rejects the 6-field cron, use `cron "* * * * *"`. Reconnect detection adapts to 1-minute ticks, but a reconnect then takes up to a minute to notice.
    - Before Loon 3.5.1 (983), Loon ran only the **first** `network-changed` script in your config. In 983 and later, every enabled one runs.
+   - **Units:** the script works in milliseconds everywhere, including Loon's `$httpClient` `timeout` option. Passing `10` there means 10 ms, which caused the earlier `NSURLErrorDomain Code=-1001` timeouts. Only the plugin's `timeout=60` is in seconds.
 2. **One call per token:** `POST <api>/api/firewall/<token>/add` with an empty body. The server reads your IP from the connection itself.
 3. **DIRECT rule.** Without it, Loon might send the request through your proxy, and the server would whitelist the proxy's exit IP.
 4. **Check the reply.** You count as whitelisted if `currentIp` matches a `whitelist` entry, exactly or within the same /24.
