@@ -1,0 +1,27 @@
+#!name=Firewall Auto-Whitelist (po0)
+#!desc=Adds this device's current exit IP to your po0 machines' firewall whitelist when the network changes, when the proxy is switched back on, and every minute while connected.
+#!author=Dokoyamo-Lisa
+#!homepage=https://github.com/Dokoyamo-Lisa/loon-fw-whitelist
+#!icon=shield.lefthalf.filled
+
+# Same script as fw-whitelist.plugin, preset for po0's API. Ready to install:
+# just fill in your pgnfw_ token(s) in the plugin's settings.
+#
+# po0's API is a bare IP (124.221.69.228). Its root redirects to console.po0.io,
+# and its TLS certificate is issued for the IP itself, with no po0 domain on it.
+
+[Argument]
+api = input,"https://124.221.69.228",tag=API base URL,desc=po0 firewall API; leave as is
+tokens = input,"",tag=po0 tokens,desc=pgnfw_ tokens, one per machine, comma-separated. Append @N to pin to slot N (e.g. pgnfw_xxx@0)
+notify = select,"once","changes","always",tag=Notify,desc=once: first success per network or reconnect, then quiet. changes: when the IP or result changes. always: after every request. Failures after 3 attempts and manual runs always notify
+
+[Rule]
+# The API whitelists the request's source IP, so this call must go DIRECT.
+IP-CIDR,124.221.69.228/32,DIRECT,no-resolve
+
+[Script]
+# The cron ticks every 15s (6 fields, seconds first) but sends a request only
+# after a reconnect or once a minute; the other ticks exit without one.
+network-changed script-path=https://raw.githubusercontent.com/Dokoyamo-Lisa/loon-fw-whitelist/main/fw-whitelist.js, timeout=60, tag=po0-fw-event, argument=[{api},{tokens},{notify}]
+cron "*/15 * * * * *" script-path=https://raw.githubusercontent.com/Dokoyamo-Lisa/loon-fw-whitelist/main/fw-whitelist.js, timeout=60, tag=po0-fw-cron, argument=[{api},{tokens},{notify}]
+generic script-path=https://raw.githubusercontent.com/Dokoyamo-Lisa/loon-fw-whitelist/main/fw-whitelist.js, timeout=60, tag=po0-fw-manual, img-url=shield.lefthalf.filled.system, argument=[{api},{tokens},{notify}]
