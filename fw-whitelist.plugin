@@ -1,29 +1,17 @@
 #!name=Firewall Auto-Whitelist
-#!desc=Adds this device's current exit IP to your server's firewall whitelist when the network changes, when the proxy is switched back on, and every minute while connected.
+#!desc=Adds this device's current exit IP to your server's firewall whitelist when the network changes and every minute while connected. Fork and replace fw.example.com with your API host before installing.
 #!author=Dokoyamo-Lisa
 #!homepage=https://github.com/Dokoyamo-Lisa/loon-fw-whitelist
-#!icon=shield.lefthalf.filled
-
-# Before installing, replace fw.example.com (in [Argument] and [Rule]) with your
-# API server's hostname. The script loads from this GitHub repo.
 
 [Argument]
-api = input,"https://fw.example.com",tag=API base URL,desc=Your whitelist server, no trailing slash
-tokens = input,"",tag=Tokens,desc=One per machine, comma-separated. Append @N to pin to slot N (e.g. abc123@0)
-notify = select,"once","changes","always",tag=Notify,desc=once: first success per network or reconnect, then quiet. changes: when the IP or result changes. always: after every request. Failures after 3 attempts and manual runs always notify
+api = input,"https://fw.example.com",tag=API base URL,desc=Your whitelist server. No trailing slash
+tokens = input,"",tag=Tokens,desc=One per machine. Separate several with | and add @N to pin one to slot N (abc123@0)
+notify = select,"once","changes","always",tag=Notify,desc=once = first success per network or reconnect then quiet. changes = when the IP or result changes. always = after every request. Failures after 3 attempts and manual runs always notify
 
 [Rule]
-# The server whitelists the request's source IP, so this call must go DIRECT.
-# Through a proxy, the proxy's IP would be whitelisted instead of yours.
 DOMAIN,fw.example.com,DIRECT
-# If your API is a bare IP instead of a domain, use this instead:
-# IP-CIDR,203.0.113.10/32,DIRECT,no-resolve
 
 [Script]
-# The cron ticks every 15s (6 fields, seconds first) but sends a request only
-# after a reconnect or once a minute; the other ticks exit without one.
-# timeout=60 is in SECONDS (how long Loon lets one run last). The script
-# itself works in milliseconds; its worst-case run is about 42 seconds.
-network-changed script-path=https://raw.githubusercontent.com/Dokoyamo-Lisa/loon-fw-whitelist/main/fw-whitelist.js, timeout=60, tag=fw-whitelist-event, argument=[{api},{tokens},{notify}], enable=true
-cron "*/15 * * * * *" script-path=https://raw.githubusercontent.com/Dokoyamo-Lisa/loon-fw-whitelist/main/fw-whitelist.js, timeout=60, tag=fw-whitelist-cron, argument=[{api},{tokens},{notify}], enable=true
-generic script-path=https://raw.githubusercontent.com/Dokoyamo-Lisa/loon-fw-whitelist/main/fw-whitelist.js, timeout=60, tag=fw-whitelist-manual, img-url=shield.lefthalf.filled.system, argument=[{api},{tokens},{notify}], enable=true
+network-changed script-path=https://raw.githubusercontent.com/Dokoyamo-Lisa/loon-fw-whitelist/main/fw-whitelist.js, timeout=60, tag=fw-whitelist-event, argument=[{api},{tokens},{notify}]
+cron "* * * * *" script-path=https://raw.githubusercontent.com/Dokoyamo-Lisa/loon-fw-whitelist/main/fw-whitelist.js, timeout=60, tag=fw-whitelist-cron, argument=[{api},{tokens},{notify}]
+generic script-path=https://raw.githubusercontent.com/Dokoyamo-Lisa/loon-fw-whitelist/main/fw-whitelist.js, timeout=60, tag=fw-whitelist-manual, img-url=checkmark.shield.system, argument=[{api},{tokens},{notify}]

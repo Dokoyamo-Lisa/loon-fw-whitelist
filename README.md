@@ -24,7 +24,7 @@ loon://import?plugin=https%3A%2F%2Fraw.githubusercontent.com%2FDokoyamo-Lisa%2Fl
 
 Then:
 
-1. Open the plugin's settings and paste your `pgnfw_` token(s) into **po0 tokens**. For several machines, separate them with commas. To pin one to a slot so it's never evicted, add `@N` after it, e.g. `pgnfw_xxx@0`.
+1. Open the plugin's settings and paste your `pgnfw_` token(s) into **po0 tokens**. For several machines, separate them with `|` or commas. To pin one to a slot so it's never evicted, add `@N` after it, e.g. `pgnfw_xxx@0`.
 2. Run **po0-fw-manual** from Loon's script list. You'll get a notification like:
 
    ```
@@ -49,13 +49,10 @@ Your server needs to implement the contract below. Then either:
 
 1. **Triggers.** Loon has no "proxy switched on" trigger, so the script uses three:
    - **network-changed** (`-event` tag): Wi-Fi/cellular switches. Waits 3s for the new network, then sends the request.
-   - **cron every 15s** (`-cron` tag, `"*/15 * * * * *"`, seconds first). Most ticks exit without sending anything. A tick sends a request when:
-     - **Reconnect:** the gap since the previous tick is more than 3× the usual gap (at least 45s). Ticks stop while Loon or the proxy is off, so the first tick after you switch it back on sends a request within about 15s.
-     - **Refresh:** the last request was a minute ago, which re-adds you if you were evicted.
-     - A tick skips if a run is still retrying, so ticks never cut short the 3 attempts.
+   - **cron every minute** (`-cron` tag, `"* * * * *"`). Each tick sends one request, which re-adds you if you were evicted. If ticks stopped for more than about 3 minutes, Loon or the proxy was off, and the first tick after it comes back counts as a **reconnect**: it starts a new notification round.
    - **generic** (`-manual` tag): you tap it. It sends at once, with no wait.
    - The script tells these apart by tag, which Loon gives it as `$script.name`.
-   - If your Loon rejects the 6-field cron, use `cron "* * * * *"`. Reconnect detection adapts to 1-minute ticks, but a reconnect then takes up to a minute to notice.
+   - The plugin files deliberately stay plain: a 5-field cron, no comment lines inside sections, no `#!icon`, and no commas inside `desc=` text. An earlier version with a 6-field 15-second cron and those extras was reported never to start its automatic scripts.
    - Before Loon 3.5.1 (983), Loon ran only the **first** `network-changed` script in your config. In 983 and later, every enabled one runs.
    - **Units:** the script works in milliseconds everywhere, including Loon's `$httpClient` `timeout` option. Passing `10` there means 10 ms, which caused the earlier `NSURLErrorDomain Code=-1001` timeouts. Only the plugin's `timeout=60` is in seconds.
 2. **One call per token:** `POST <api>/api/firewall/<token>/add` with an empty body. The server reads your IP from the connection itself.

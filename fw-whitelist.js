@@ -16,12 +16,13 @@
  * Triggers (told apart by the plugin tag, which Loon exposes as $script.name):
  *   network  — network-changed. Waits 3s for the network, then POSTs.
  *   manual   — the generic script the user taps. POSTs at once.
- *   tick     — cron every 15s. Usually exits without any request. It POSTs
- *              when (a) ticks stopped for a while, meaning Loon / the proxy
- *              was off and was just switched back on ("reconnect"), or
- *              (b) the last POST is REFRESH_MS old.
- *   Loon has no "proxy switched on" trigger, so (a) is how a reconnect gets
- *   whitelisted within one tick.
+ *   tick     — cron every minute. It POSTs on every tick while connected
+ *              (the last POST is REFRESH_MS old by then). If ticks stopped
+ *              for a while, Loon / the proxy was off and was just switched
+ *              back on: that tick counts as a "reconnect", which starts a
+ *              new notification round.
+ *   The tick logic also works with a faster cron (e.g. every 15s, 6-field
+ *   with seconds first): extra ticks exit without a request.
  *
  * Arguments (from the plugin's [Argument] section):
  *   api    — base URL of your server, e.g. https://fw.example.com
