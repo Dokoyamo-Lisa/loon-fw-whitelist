@@ -72,14 +72,18 @@ var INFLIGHT_STALE_MS = 70 * SECOND_MS;
 var K = {
   state: "fwwl_state_", // + token index: "ip|ok" from the last run
   runId: "fwwl_run_id", // newest automatic POST run; older ones stop
-  inflight: "fwwl_inflight", // start of the running POST run (Date.now() ms), or ""
+  inflight: "fwwl_inflight", // start of the running POST run (Date.now() ms), or NONE
   lastPost: "fwwl_last_post", // end of the last finished POST run (Date.now() ms)
   lastTick: "fwwl_last_tick", // previous cron tick (Date.now() ms)
   tickGap: "fwwl_tick_gap", // usual gap between ticks (ms)
-  notified: "fwwl_notified", // exit IPs already announced this network; "" = not yet
+  notified: "fwwl_notified", // exit IPs already announced this network; NONE = not yet
 };
 
 /* ---------- storage ---------- */
+
+// Loon's docs warn that saving an empty string behaves inconsistently
+// (it can be ignored), so "nothing" is stored as this marker instead.
+var NONE = "-";
 
 function get(key) {
   return $persistentStore.read(key);
@@ -151,6 +155,14 @@ function sleep(ms) {
 // Loon documents $script.name as the script's name or tag. The plugin's tags
 // end in -event, -cron and -manual. $script.type is checked too in case a
 // Loon version provides it.
+function scriptName() {
+  try {
+    return typeof $script === "object" && $script ? String($script.name || "") : "";
+  } catch (e) {
+    return "";
+  }
+}
+
 function detectTrigger() {
   try {
     var s = typeof $script === "object" && $script ? $script : {};
@@ -292,7 +304,7 @@ function shouldNotify(mode, reason, summary) {
     firstSuccess = get(K.notified) !== summary.ipKey;
     set(K.notified, summary.ipKey);
   } else {
-    set(K.notified, "");
+    set(K.notified, NONE);
   }
 
   if (reason === "manual" || summary.exhausted || mode === "always") return true;
@@ -317,10 +329,15 @@ function main() {
   var now = Date.now();
   var trigger = detectTrigger();
   var reason = reasonToRun(trigger, now);
-  if (!reason) return $done(); // routine tick: nothing to do
+  if (!reason) {
+    // Routine tick: nothing to send. Logged so Loon's script log shows the
+    // cron is alive.
+    console.log("fw-whitelist: tick, nothing due");
+    return $done();
+  }
 
   // A new network or a reconnect starts a new "once" round.
-  if (reason === "network" || reason === "reconnect") set(K.notified, "");
+  if (reason === "network" || reason === "reconnect") set(K.notified, NONE);
 
   var runId = null;
   if (reason !== "manual") {
@@ -328,10 +345,10 @@ function main() {
     set(K.runId, runId);
     set(K.inflight, now);
   }
-  console.log("fw-whitelist: run (" + reason + ")");
+  console.log("fw-whitelist: run (" + reason + "), trigger " + trigger + ", $script.name=" + scriptName());
 
   function finish() {
-    if (runId !== null && !isSuperseded(runId)) set(K.inflight, "");
+    if (runId !== null && !isSuperseded(runId)) set(K.inflight, NONE);
     $done();
   }
 
